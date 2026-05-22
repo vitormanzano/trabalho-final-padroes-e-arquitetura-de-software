@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# macOS
+.DS_Store
