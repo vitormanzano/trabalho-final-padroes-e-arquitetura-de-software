@@ -1,12 +1,8 @@
-# Criação do schema (DDL) do banco de dados.
-# Mantido separado da conexão: este módulo cuida apenas da estrutura
-# das tabelas.
-
 _CREATE_PRODUTOS = """
     CREATE TABLE Produtos (
         idProduto INT PRIMARY KEY,
-        nome VARCHAR2(255),
-        descricao VARCHAR2(255),
+        nome VARCHAR(255),
+        descricao VARCHAR(255),
         custoProduto DECIMAL(12, 2),
         custofixo DECIMAL(12, 2),
         comissao DECIMAL(12, 2),
@@ -19,8 +15,8 @@ _CREATE_PRODUTOS = """
 def tabela_existe(connection, nome_tabela):
     with connection.cursor() as cursor:
         cursor.execute(
-            "SELECT 1 FROM user_tables WHERE table_name = :nome",
-            nome=nome_tabela.upper(),
+            "SELECT 1 FROM information_schema.tables WHERE table_name = %s",
+            (nome_tabela.lower(),),
         )
         return cursor.fetchone() is not None
 

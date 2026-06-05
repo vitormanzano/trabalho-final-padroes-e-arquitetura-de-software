@@ -1,4 +1,4 @@
-import oracledb
+import psycopg2
 
 from src.config.settings import settings
 
@@ -14,10 +14,12 @@ class DatabaseConnection:
 
     def get_connection(self):
         if self._connection is None:
-            self._connection = oracledb.connect(
-                user="",
-                password="",
-                dsn=""
+            self._connection = psycopg2.connect(
+                host=settings.DB_HOST,
+                port=settings.DB_PORT,
+                dbname=settings.DB_NAME,
+                user=settings.DB_USER,
+                password=settings.DB_PASSWORD,
             )
         return self._connection
 
