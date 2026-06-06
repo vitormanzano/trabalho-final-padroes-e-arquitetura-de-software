@@ -27,3 +27,8 @@ class DatabaseConnection:
         if self._connection is not None:
             self._connection.close()
             self._connection = None
+
+
+def conectar_banco():
+    """Retorna a conexão única com o banco (Singleton DatabaseConnection)."""
+    return DatabaseConnection().get_connection()
