@@ -8,7 +8,9 @@ Cobertura:
 - ``cifra.descriptografar``     — operação inversa, usada na listagem.
 - ``domain.Produto``            — cálculo de preço e classificação de rentabilidade.
 - ``domain.validacao``          — regras de validação de produto.
-- ``service.ProdutoService``    — cadastro, listagem, alteração e exclusão.
+- ``service.ProdutoService``    — cadastro, listagem, alteração, exclusão e cifra.
+- ``repository``                — contrato ``IProdutoRepositorio`` e implementação.
+- ``factory``                   — Factory Method de repository e de service.
 - ``presentation.formatador``   — formatação de produto para exibição.
 
 Como rodar:
@@ -16,15 +18,18 @@ Como rodar:
     python -m pytest --cov=src --cov-report=term-missing
 """
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from src.domain.cifra import criptografar, descriptografar
 from src.domain.produto import Produto
 from src.domain.validacao import ErroValidacao, validar_produto
+from src.factory.repository_factory import PostgresRepositoryCreator, RepositoryCreator
+from src.factory.service_factory import PostgresServiceCreator, ServiceCreator
 from src.presentation.formatador import formatar_produto
-from src.service.produto_service import ProdutoRepositorio, ProdutoService
+from src.repository.produto_repository import IProdutoRepositorio, ProdutoRepositorio
+from src.service.produto_service import ProdutoService
 
 
 # ---------------------------------------------------------------------------
@@ -287,3 +292,118 @@ def test_formatar_produto_classifica_rentabilidade(margem, rotulo):
     """Cada faixa de margem deve aparecer no texto formatado."""
     saida = formatar_produto(_produto(margem_lucro=margem))
     assert rotulo in saida
+
+
+# ---------------------------------------------------------------------------
+# ProdutoService — cifra (a criptografia migrou do repository para o service)
+# ---------------------------------------------------------------------------
+
+def test_cadastrar_produto_cifra_descricao_antes_de_salvar():
+    """O service deve persistir a descrição já cifrada."""
+    servico, repo = _servico_com_mock()
+    repo.buscar_por_id.return_value = None
+
+    servico.cadastrar_produto(1, "Arroz", "GRAO", 100.0, 10.0, 5.0, 8.0, 25.0)
+
+    produto_salvo = repo.salvar.call_args.args[0]
+    assert produto_salvo.descricao == criptografar("GRAO")
+
+
+def test_cadastrar_produto_retorna_descricao_em_texto_claro():
+    """O produto devolvido ao chamador mantém a descrição legível."""
+    servico, repo = _servico_com_mock()
+    repo.buscar_por_id.return_value = None
+
+    produto = servico.cadastrar_produto(1, "Arroz", "GRAO", 100.0, 10.0, 5.0, 8.0, 25.0)
+
+    assert produto.descricao == "GRAO"
+
+
+def test_buscar_produto_decifra_descricao():
+    """buscar_produto deve devolver a descrição decifrada."""
+    servico, repo = _servico_com_mock()
+    repo.buscar_por_id.return_value = _produto(descricao=criptografar("GRAO"))
+
+    produto = servico.buscar_produto(1)
+
+    assert produto.descricao == "GRAO"
+
+
+def test_listar_produtos_decifra_descricao():
+    """listar_produtos deve devolver as descrições decifradas."""
+    servico, repo = _servico_com_mock()
+    repo.listar_todos.return_value = [_produto(descricao=criptografar("FEIJAO"))]
+
+    produtos = servico.listar_produtos()
+
+    assert produtos[0].descricao == "FEIJAO"
+
+
+def test_atualizar_produto_cifra_descricao():
+    """atualizar_produto deve persistir a descrição já cifrada."""
+    servico, repo = _servico_com_mock()
+
+    servico.atualizar_produto(_produto(descricao="GRAO"))
+
+    produto_atualizado = repo.atualizar.call_args.args[0]
+    assert produto_atualizado.descricao == criptografar("GRAO")
+
+
+# ---------------------------------------------------------------------------
+# Repository — contrato (interface de domínio)
+# ---------------------------------------------------------------------------
+
+def test_produto_repositorio_implementa_a_interface():
+    assert issubclass(ProdutoRepositorio, IProdutoRepositorio)
+
+
+def test_interface_repositorio_nao_e_instanciavel():
+    with pytest.raises(TypeError):
+        IProdutoRepositorio()
+
+
+# ---------------------------------------------------------------------------
+# Factory Method — repository e service
+# ---------------------------------------------------------------------------
+
+def test_creators_abstratos_nao_sao_instanciaveis():
+    with pytest.raises(TypeError):
+        RepositoryCreator()
+    with pytest.raises(TypeError):
+        ServiceCreator()
+
+
+@patch("src.factory.repository_factory.conectar_banco")
+def test_postgres_repository_creator_fabrica_repositorio(mock_conectar):
+    """O método fábrica devolve um produto concreto do tipo esperado."""
+    mock_conectar.return_value = MagicMock()
+
+    repositorio = PostgresRepositoryCreator().criar_repository()
+
+    assert isinstance(repositorio, ProdutoRepositorio)
+    assert isinstance(repositorio, IProdutoRepositorio)
+
+
+@patch("src.factory.repository_factory.conectar_banco")
+def test_postgres_service_creator_fabrica_service(mock_conectar):
+    """O service factory compõe um ProdutoService com seu repositório."""
+    mock_conectar.return_value = MagicMock()
+
+    servico = PostgresServiceCreator().criar_service()
+
+    assert isinstance(servico, ProdutoService)
+
+
+def test_service_creator_extensivel_sem_alterar_o_cliente():
+    """Uma nova subclasse troca a fonte de dados — a essência do Factory Method."""
+    repo_falso = MagicMock(spec=IProdutoRepositorio)
+    repo_falso.listar_todos.return_value = []
+
+    class FakeServiceCreator(ServiceCreator):
+        def criar_service(self) -> ProdutoService:
+            return ProdutoService(repo_falso)
+
+    servico = FakeServiceCreator().criar_service()
+
+    assert servico.listar_produtos() == []
+    repo_falso.listar_todos.assert_called_once()

@@ -7,17 +7,18 @@ import time
 
 from src.data.connection import conectar_banco
 from src.data.schema import criar_tabela
+from src.factory.service_factory import PostgresServiceCreator
 from src.presentation.cli import CLI
-from src.service.produto_service import ProdutoRepositorio, ProdutoService
 
 
 def main() -> None:
     conn = conectar_banco()
     criar_tabela(conn)
 
-    repositorio = ProdutoRepositorio(conn)
-    servico     = ProdutoService(repositorio)
-    cli         = CLI(servico)
+    # Factory Method: o Criador fabrica o service já composto com seu
+    # repositório. O cliente não conhece a fonte de dados por trás.
+    servico = PostgresServiceCreator().criar_service()
+    cli     = CLI(servico)
 
     time.sleep(1)
     cli.iniciar()
