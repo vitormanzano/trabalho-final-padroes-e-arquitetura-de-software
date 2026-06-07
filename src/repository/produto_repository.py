@@ -1,12 +1,4 @@
 """Camada de repositório: contrato e implementação do acesso a dados de Produto.
-
-``IProdutoRepositorio`` é a interface de domínio: define *o que* o repositório
-faz, sem expor SQL nem o driver do banco. O ``ProdutoService`` depende dessa
-abstração (e não da classe concreta), o que permite trocar a fonte de dados —
-banco real, mock em teste, outro SGBD — sem alterar a regra de negócio.
-
-Este módulo lida apenas com SQL. A criptografia/descriptografia da descrição é
-responsabilidade da camada de serviço.
 """
 
 from abc import ABC, abstractmethod
@@ -16,7 +8,7 @@ import psycopg2.extensions
 from src.domain.produto import Produto
 
 
-class IProdutoRepositorio(ABC):
+class IProdutoRepository(ABC):
     """Contrato de persistência de produtos (interface de domínio)."""
 
     @abstractmethod
@@ -40,7 +32,7 @@ class IProdutoRepositorio(ABC):
         ...
 
 
-class ProdutoRepositorio(IProdutoRepositorio):
+class ProdutoRepository(IProdutoRepository):
     """Implementação PostgreSQL do repositório de produtos."""
 
     _COLUNAS = (
