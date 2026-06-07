@@ -110,7 +110,7 @@ class CLI:
             print("\tNenhum produto cadastrado.")
             return
         for produto in produtos:
-            print(formatar_produto(produto))
+            print(formatar_produto(produto, self._servico.calcular_preco(produto)))
 
     def _alterar(self) -> None:
         print("\n\t\t<<< Alteração de cadastro >>>\n")
@@ -120,7 +120,7 @@ class CLI:
             print("\n\t\tO ID não existe!")
             return
 
-        print(formatar_produto(produto))
+        print(formatar_produto(produto, self._servico.calcular_preco(produto)))
         print(_MENU_ALTERAR)
         campo_opcao = self._ler_int("Opção: ")
         nome_campo  = _CAMPOS_ALTERAR.get(campo_opcao)
@@ -141,7 +141,7 @@ class CLI:
             print("\tO ID não existe!")
             return
 
-        print(formatar_produto(produto))
+        print(formatar_produto(produto, self._servico.calcular_preco(produto)))
         confirmacao = input("\tDeseja realmente excluir? s[SIM] n[NÃO]: ").strip().lower()
         if confirmacao == "s":
             self._servico.excluir_produto(id_produto)

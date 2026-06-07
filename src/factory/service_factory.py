@@ -3,6 +3,7 @@
 
 from abc import ABC, abstractmethod
 
+from src.domain.strategy_preco import PrecoPorMarkup
 from src.factory.repository_factory import PostgresRepositoryCreator
 from src.service.produto_service import ProdutoService
 
@@ -21,4 +22,6 @@ class PostgresServiceCreator(ServiceCreator):
 
     def criar_service(self) -> ProdutoService:
         repository = PostgresRepositoryCreator().criar_repository()
-        return ProdutoService(repository)
+        # Estratégia de precificação injetada aqui: trocar a forma de precificar
+        # é mudar esta linha — o ProdutoService não muda (padrão Strategy).
+        return ProdutoService(repository, PrecoPorMarkup())

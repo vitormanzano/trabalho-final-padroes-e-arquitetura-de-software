@@ -6,10 +6,11 @@ garantindo que o comportamento observável seja preservado após a refatoração
 Cobertura:
 - ``cifra.criptografar``        — cifra de substituição usada no cadastro.
 - ``cifra.descriptografar``     — operação inversa, usada na listagem.
-- ``domain.Produto``            — cálculo de preço e classificação de rentabilidade.
+- ``domain.Produto``            — classificação de rentabilidade.
+- ``domain.strategy_preco``     — Strategy: estratégias de precificação.
 - ``domain.validacao``          — regras de validação de produto.
 - ``service.ProdutoService``    — cadastro, listagem, alteração, exclusão e cifra.
-- ``repository``                — contrato ``IProdutoRepositorio`` e implementação.
+- ``repository``                — contrato ``IProdutoRepository`` e implementação.
 - ``factory``                   — Factory Method de repository e de service.
 - ``presentation.formatador``   — formatação de produto para exibição.
 
@@ -23,12 +24,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from src.domain.cifra import criptografar, descriptografar
+from src.domain.strategy_preco import PrecoMargemSobreCusto, PrecoPorMarkup
 from src.domain.produto import Produto
 from src.domain.validacao import ErroValidacao, validar_produto
 from src.factory.repository_factory import PostgresRepositoryCreator, RepositoryCreator
 from src.factory.service_factory import PostgresServiceCreator, ServiceCreator
 from src.presentation.formatador import formatar_produto
-from src.repository.produto_repository import IProdutoRepositorio, ProdutoRepositorio
+from src.repository.produto_repository import IProdutoRepository, ProdutoRepository
 from src.service.produto_service import ProdutoService
 
 
@@ -105,29 +107,61 @@ def test_roundtrip_texto_impar_mantem_padding():
 
 
 # ---------------------------------------------------------------------------
-# Produto — calcular_preco_venda
+# Strategy — estratégias de precificação
 # ---------------------------------------------------------------------------
 
-def test_calcular_preco_venda_resultado_correto():
-    """Verifica a fórmula: PV = 100 * custo / (100 - soma_percentuais)."""
+def test_preco_por_markup_resultado_correto():
+    """PrecoPorMarkup: PV = 100 * custo / (100 - soma_percentuais)."""
     produto = _produto(margem_lucro=25.0)
     # 100 - (10 + 5 + 8 + 25) = 52  →  PV = 100 * 100 / 52 ≈ 192.31
     esperado = 100 * 100.0 / (100 - (10.0 + 5.0 + 8.0 + 25.0))
-    assert produto.calcular_preco_venda() == pytest.approx(esperado, rel=1e-4)
+    assert PrecoPorMarkup().calcular(produto) == pytest.approx(esperado, rel=1e-4)
 
 
-def test_calcular_preco_venda_soma_cem_lanca_erro():
+def test_preco_por_markup_soma_cem_lanca_erro():
     """Soma dos percentuais igual a 100 deve lançar ValueError."""
     produto = Produto(1, "X", "Y", 100.0, 25.0, 25.0, 25.0, 25.0)
     with pytest.raises(ValueError):
-        produto.calcular_preco_venda()
+        PrecoPorMarkup().calcular(produto)
 
 
-def test_calcular_preco_venda_soma_acima_de_cem_lanca_erro():
+def test_preco_por_markup_soma_acima_de_cem_lanca_erro():
     """Soma dos percentuais acima de 100 deve lançar ValueError."""
     produto = Produto(1, "X", "Y", 100.0, 30.0, 30.0, 30.0, 30.0)
     with pytest.raises(ValueError):
-        produto.calcular_preco_venda()
+        PrecoPorMarkup().calcular(produto)
+
+
+def test_preco_margem_sobre_custo_resultado_correto():
+    """PrecoMargemSobreCusto: PV = custo * (1 + margem / 100)."""
+    produto = _produto(margem_lucro=25.0)
+    assert PrecoMargemSobreCusto().calcular(produto) == pytest.approx(125.0)
+
+
+def test_estrategias_de_preco_sao_intercambiaveis():
+    """As duas estratégias produzem preços distintos para o mesmo produto."""
+    produto = _produto(margem_lucro=25.0)
+    assert PrecoPorMarkup().calcular(produto) != PrecoMargemSobreCusto().calcular(produto)
+
+
+def test_service_usa_a_estrategia_injetada():
+    """O service (contexto) delega o cálculo à estratégia recebida."""
+    repo = MagicMock(spec=IProdutoRepository)
+    produto = _produto(margem_lucro=25.0)
+
+    servico_markup = ProdutoService(repo, PrecoPorMarkup())
+    servico_custo  = ProdutoService(repo, PrecoMargemSobreCusto())
+
+    assert servico_markup.calcular_preco(produto) == PrecoPorMarkup().calcular(produto)
+    assert servico_custo.calcular_preco(produto) == PrecoMargemSobreCusto().calcular(produto)
+
+
+def test_service_usa_markup_como_estrategia_padrao():
+    """Sem estratégia explícita, o service usa PrecoPorMarkup."""
+    repo = MagicMock(spec=IProdutoRepository)
+    produto = _produto(margem_lucro=25.0)
+    servico = ProdutoService(repo)
+    assert servico.calcular_preco(produto) == PrecoPorMarkup().calcular(produto)
 
 
 # ---------------------------------------------------------------------------
@@ -191,7 +225,7 @@ def test_validar_produto_soma_percentuais_cem_lanca_erro():
 
 def _servico_com_mock():
     """Cria um ProdutoService com repositório mockado."""
-    repositorio = MagicMock(spec=ProdutoRepositorio)
+    repositorio = MagicMock(spec=ProdutoRepository)
     return ProdutoService(repositorio), repositorio
 
 
@@ -270,14 +304,16 @@ def test_atualizar_produto_dados_invalidos_nao_chama_atualizar():
 
 def test_formatar_produto_contem_nome_e_descricao():
     """A saída formatada deve conter o nome e a descrição do produto."""
-    saida = formatar_produto(_produto())
+    produto = _produto()
+    saida = formatar_produto(produto, PrecoPorMarkup().calcular(produto))
     assert "Arroz" in saida
     assert "FEIJAO" in saida
 
 
 def test_formatar_produto_contem_preco_de_venda():
     """A saída formatada deve conter a linha de preço de venda."""
-    saida = formatar_produto(_produto())
+    produto = _produto()
+    saida = formatar_produto(produto, PrecoPorMarkup().calcular(produto))
     assert "Preço de venda" in saida
 
 
@@ -290,7 +326,8 @@ def test_formatar_produto_contem_preco_de_venda():
 ])
 def test_formatar_produto_classifica_rentabilidade(margem, rotulo):
     """Cada faixa de margem deve aparecer no texto formatado."""
-    saida = formatar_produto(_produto(margem_lucro=margem))
+    produto = _produto(margem_lucro=margem)
+    saida = formatar_produto(produto, PrecoPorMarkup().calcular(produto))
     assert rotulo in saida
 
 
@@ -354,12 +391,12 @@ def test_atualizar_produto_cifra_descricao():
 # ---------------------------------------------------------------------------
 
 def test_produto_repositorio_implementa_a_interface():
-    assert issubclass(ProdutoRepositorio, IProdutoRepositorio)
+    assert issubclass(ProdutoRepository, IProdutoRepository)
 
 
 def test_interface_repositorio_nao_e_instanciavel():
     with pytest.raises(TypeError):
-        IProdutoRepositorio()
+        IProdutoRepository()
 
 
 # ---------------------------------------------------------------------------
@@ -380,8 +417,8 @@ def test_postgres_repository_creator_fabrica_repositorio(mock_conectar):
 
     repositorio = PostgresRepositoryCreator().criar_repository()
 
-    assert isinstance(repositorio, ProdutoRepositorio)
-    assert isinstance(repositorio, IProdutoRepositorio)
+    assert isinstance(repositorio, ProdutoRepository)
+    assert isinstance(repositorio, IProdutoRepository)
 
 
 @patch("src.factory.repository_factory.conectar_banco")
@@ -396,7 +433,7 @@ def test_postgres_service_creator_fabrica_service(mock_conectar):
 
 def test_service_creator_extensivel_sem_alterar_o_cliente():
     """Uma nova subclasse troca a fonte de dados — a essência do Factory Method."""
-    repo_falso = MagicMock(spec=IProdutoRepositorio)
+    repo_falso = MagicMock(spec=IProdutoRepository)
     repo_falso.listar_todos.return_value = []
 
     class FakeServiceCreator(ServiceCreator):

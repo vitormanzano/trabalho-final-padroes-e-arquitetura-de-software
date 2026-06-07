@@ -1,0 +1,50 @@
+%% Visao de componentes (estilo C4 - nivel de container/componente)
+%% Sistema de Cadastro de Produtos - aplicacao CLI monolitica em Python
+flowchart TB
+    ator(["Funcionario<br/>(usuario do terminal)"])
+
+    subgraph App["Aplicacao CLI (Python)"]
+        direction TB
+
+        subgraph Apr["Camada de Apresentacao"]
+            CLI["CLI<br/>(menu e entrada/saida)"]
+            FMT["formatador<br/>(formata Produto em texto)"]
+        end
+
+        subgraph Srv["Camada de Servico"]
+            SVC["ProdutoService<br/>(regras de negocio)"]
+        end
+
+        subgraph Dom["Camada de Dominio"]
+            EST["EstrategiaPreco<br/>(Strategy)"]
+            VAL["validar_produto"]
+            CIF["cifra<br/>(criptografar/descriptografar)"]
+        end
+
+        subgraph Per["Camada de Persistencia"]
+            IREP["IProdutoRepository<br/>(contrato)"]
+            REP["ProdutoRepository<br/>(SQL PostgreSQL)"]
+            CONN["DatabaseConnection<br/>(Singleton)"]
+        end
+
+        subgraph Comp["Composicao"]
+            FAC["Service/Repository Creator<br/>(Factory Method)"]
+            MAIN["main"]
+        end
+    end
+
+    DB[("PostgreSQL<br/>tabela produtos")]
+
+    ator -->|"interage via terminal"| CLI
+    CLI -->|"opera dominio"| SVC
+    CLI -->|"exibe"| FMT
+    SVC -->|"depende do contrato"| IREP
+    SVC -->|"calcula preco"| EST
+    SVC -->|"valida"| VAL
+    SVC -->|"cifra/decifra"| CIF
+    REP -.->|"implementa"| IREP
+    REP -->|"conexao unica"| CONN
+    CONN -->|"psycopg2"| DB
+    MAIN -->|"compoe"| FAC
+    FAC -->|"cria"| SVC
+    FAC -->|"cria"| REP

@@ -7,9 +7,13 @@ Não conhece banco de dados nem regras de negócio.
 from src.domain.produto import Produto
 
 
-def formatar_produto(produto: Produto) -> str:
-    """Retorna a representação textual completa de um produto."""
-    pv = produto.calcular_preco_venda()
+def formatar_produto(produto: Produto, preco_venda: float) -> str:
+    """Retorna a representação textual completa de um produto.
+
+    O preço de venda é calculado fora (pela estratégia de precificação do
+    serviço) e injetado aqui, mantendo a formatação livre de regra de negócio.
+    """
+    pv = preco_venda
 
     receita_bruta  = pv - produto.custo_produto
     custo_fixo_rs  = pv * produto.custo_fixo / 100

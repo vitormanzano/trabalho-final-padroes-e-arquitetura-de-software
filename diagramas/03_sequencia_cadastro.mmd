@@ -1,0 +1,35 @@
+%% Diagrama de sequencia - fluxo central "Cadastrar Produto"
+%% Reflete cadastrar_produto em ProdutoService: validacao -> checagem de duplicado
+%% -> cifra da descricao -> persistencia
+sequenceDiagram
+    actor F as Funcionario
+    participant CLI as CLI
+    participant S as ProdutoService
+    participant V as validar_produto
+    participant C as cifra
+    participant R as ProdutoRepository
+    participant DB as PostgreSQL
+
+    F->>CLI: seleciona "1 - Cadastrar Produto"
+    CLI->>F: solicita dados do produto
+    F-->>CLI: informa dados (id, nome, descricao, custos...)
+    CLI->>S: cadastrar_produto(dados)
+
+    S->>V: validar_produto(dados)
+    V-->>S: ok (sem excecao)
+
+    S->>R: buscar_por_id(id_produto)
+    R->>DB: SELECT ... WHERE idProduto = %s
+    DB-->>R: nenhuma linha
+    R-->>S: None (id disponivel)
+
+    S->>C: criptografar(descricao)
+    C-->>S: descricao cifrada
+
+    S->>R: salvar(produto cifrado)
+    R->>DB: INSERT INTO produtos ... + COMMIT
+    DB-->>R: confirmado
+    R-->>S: None
+
+    S-->>CLI: Produto cadastrado
+    CLI->>F: "Dados inseridos com sucesso"

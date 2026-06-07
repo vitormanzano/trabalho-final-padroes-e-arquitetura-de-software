@@ -1,7 +1,7 @@
 """Camada de serviço: regras de negócio e coordenação com a persistência.
 
 Não conhece detalhes de terminal nem de SQL. Depende da interface
-``IProdutoRepositorio`` (e não da implementação concreta), de modo que a
+``IProdutoRepository`` (e não da implementação concreta), de modo que a
 persistência pode ser trocada sem alterar a regra de negócio.
 
 A criptografia da descrição é responsabilidade desta camada: o serviço cifra
@@ -12,18 +12,33 @@ cifra e os objetos ``Produto`` devolvidos ao chamador sempre em texto claro.
 from dataclasses import replace
 
 from src.domain.cifra import criptografar, descriptografar
+from src.domain.strategy_preco import StrategyPreco, PrecoPorMarkup
 from src.domain.produto import Produto
 from src.domain.validacao import validar_produto
-from src.repository.produto_repository import IProdutoRepositorio, ProdutoRepositorio
+from src.repository.produto_repository import IProdutoRepository, ProdutoRepository
 
-__all__ = ["ProdutoRepositorio", "ProdutoService"]
+__all__ = ["ProdutoRepository", "ProdutoService"]
 
 
 class ProdutoService:
-    """Orquestra validação, domínio, cifra e persistência."""
+    """Orquestra validação, domínio, cifra, precificação e persistência.
 
-    def __init__(self, repositorio: IProdutoRepositorio) -> None:
+    O cálculo de preço é delegado a uma ``StrategyPreco`` injetada (padrão
+    Strategy): trocar a forma de precificar é passar outra estratégia, sem
+    alterar este serviço.
+    """
+
+    def __init__(
+        self,
+        repositorio: IProdutoRepository,
+        strategy_preco: StrategyPreco | None = None,
+    ) -> None:
         self._repositorio = repositorio
+        self._strategy_preco = strategy_preco or PrecoPorMarkup()
+
+    def calcular_preco(self, produto: Produto) -> float:
+        """Calcula o preço de venda usando a estratégia configurada."""
+        return self._strategy_preco.calcular(produto)
 
     def buscar_produto(self, id_produto: int) -> Produto | None:
         produto = self._repositorio.buscar_por_id(id_produto)

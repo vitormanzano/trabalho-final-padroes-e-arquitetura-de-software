@@ -1,0 +1,81 @@
+%% Diagrama de classes das partes onde padroes GoF foram aplicados
+%% Strategy, Factory Method, Singleton (+ Repository como contrato de dominio)
+classDiagram
+    direction LR
+
+    %% ===================== Strategy =====================
+    class EstrategiaPreco {
+        <<abstract>>
+        +calcular(produto) float
+    }
+    class PrecoPorMarkup {
+        +calcular(produto) float
+    }
+    class PrecoMargemSobreCusto {
+        +calcular(produto) float
+    }
+    EstrategiaPreco <|-- PrecoPorMarkup
+    EstrategiaPreco <|-- PrecoMargemSobreCusto
+
+    %% ===================== Repository =====================
+    class IProdutoRepository {
+        <<interface>>
+        +buscar_por_id(id_produto) Produto
+        +listar_todos() list~Produto~
+        +salvar(produto) None
+        +atualizar(produto) None
+        +excluir(id_produto) None
+    }
+    class ProdutoRepository {
+        -connection
+        +buscar_por_id(id_produto) Produto
+        +listar_todos() list~Produto~
+        +salvar(produto) None
+        +atualizar(produto) None
+        +excluir(id_produto) None
+    }
+    IProdutoRepository <|.. ProdutoRepository
+
+    %% ===================== Service (Context do Strategy) =====================
+    class ProdutoService {
+        -repositorio : IProdutoRepository
+        -estrategia_preco : EstrategiaPreco
+        +calcular_preco(produto) float
+        +cadastrar_produto(...) Produto
+        +atualizar_produto(produto) None
+        +excluir_produto(id_produto) None
+    }
+    ProdutoService o--> IProdutoRepository : depende
+    ProdutoService o--> EstrategiaPreco : usa
+
+    %% ===================== Factory Method =====================
+    class RepositoryCreator {
+        <<abstract>>
+        +criar_repository() IProdutoRepository
+    }
+    class PostgresRepositoryCreator {
+        +criar_repository() IProdutoRepository
+    }
+    RepositoryCreator <|-- PostgresRepositoryCreator
+    PostgresRepositoryCreator ..> ProdutoRepository : cria
+
+    class ServiceCreator {
+        <<abstract>>
+        +criar_service() ProdutoService
+    }
+    class PostgresServiceCreator {
+        +criar_service() ProdutoService
+    }
+    ServiceCreator <|-- PostgresServiceCreator
+    PostgresServiceCreator ..> ProdutoService : cria
+    PostgresServiceCreator ..> PostgresRepositoryCreator : usa
+
+    %% ===================== Singleton =====================
+    class DatabaseConnection {
+        <<Singleton>>
+        -_instance
+        -_connection
+        +get_connection()
+        +close() None
+    }
+    ProdutoRepository ..> DatabaseConnection : conectar_banco()
