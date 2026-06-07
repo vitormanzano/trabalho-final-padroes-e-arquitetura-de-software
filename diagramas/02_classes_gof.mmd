@@ -4,7 +4,7 @@ classDiagram
     direction LR
 
     %% ===================== Strategy =====================
-    class EstrategiaPreco {
+    class StrategyPreco {
         <<abstract>>
         +calcular(produto) float
     }
@@ -14,8 +14,8 @@ classDiagram
     class PrecoMargemSobreCusto {
         +calcular(produto) float
     }
-    EstrategiaPreco <|-- PrecoPorMarkup
-    EstrategiaPreco <|-- PrecoMargemSobreCusto
+    StrategyPreco <|-- PrecoPorMarkup
+    StrategyPreco <|-- PrecoMargemSobreCusto
 
     %% ===================== Repository =====================
     class IProdutoRepository {
@@ -39,14 +39,14 @@ classDiagram
     %% ===================== Service (Context do Strategy) =====================
     class ProdutoService {
         -repositorio : IProdutoRepository
-        -estrategia_preco : EstrategiaPreco
+        -estrategia_preco : StrategyPreco
         +calcular_preco(produto) float
         +cadastrar_produto(...) Produto
         +atualizar_produto(produto) None
         +excluir_produto(id_produto) None
     }
     ProdutoService o--> IProdutoRepository : depende
-    ProdutoService o--> EstrategiaPreco : usa
+    ProdutoService o--> StrategyPreco : usa
 
     %% ===================== Factory Method =====================
     class RepositoryCreator {
